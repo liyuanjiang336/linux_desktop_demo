@@ -52,6 +52,14 @@ MAINSRC = ./main.c
 
 include $(LVGL_DIR)/lvgl/lvgl.mk
 include $(LVGL_DIR)/lv_drivers/lv_drivers.mk
+
+# lv_drivers release/v8.1 lv_drivers.mk does not add lv_drivers/sdl/*.c.
+# The Ubuntu desktop entry point uses sdl_init/sdl_display_flush/sdl_mouse_read,
+# so explicitly compile the SDL backend for the native desktop build.
+ifeq ($(PLATFORM),ubuntu)
+CSRCS += $(wildcard $(LVGL_DIR)/lv_drivers/sdl/*.c)
+endif
+
 include $(LVGL_DIR)/lv_lib_png/lv_lib_png.mk
 include $(LVGL_DIR)/lv_100ask_modules/lv_100ask_modules.mk
 
