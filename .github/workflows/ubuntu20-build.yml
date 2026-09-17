@@ -1,0 +1,32 @@
+name: Ubuntu 20.04 Build
+
+on:
+  push:
+    branches:
+      - ubuntu20.04-support
+  pull_request:
+    branches:
+      - master
+
+jobs:
+  build:
+    runs-on: ubuntu-20.04
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential pkg-config libsdl2-dev libdbus-1-dev dbus-x11
+
+      - name: Build
+        run: |
+          make clean
+          make -j$(nproc)
+
+      - name: Verify executable
+        run: test -x bin/100ask_lvgl_Main
