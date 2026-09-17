@@ -20,6 +20,20 @@
 #define DISP_VER_RES 600
 #define DISP_BUF_SIZE (DISP_HOR_RES * DISP_VER_RES)
 
+#ifdef LV_DESKTOP_SIM
+/*
+ * lv_conf.h uses LV_TICK_CUSTOM=1 and obtains time from custom_tick_get().
+ * With LV_TICK_CUSTOM enabled LVGL does not provide lv_tick_inc(), however
+ * the legacy lv_drivers v8.1 SDL backend still calls lv_tick_inc() from its
+ * internal tick thread. Provide a no-op compatibility symbol for the Ubuntu
+ * simulator: custom_tick_get() remains the single source of LVGL time.
+ */
+void lv_tick_inc(uint32_t tick_period)
+{
+    (void)tick_period;
+}
+#endif
+
 int main(void)
 {
     lv_init();
