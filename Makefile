@@ -24,13 +24,16 @@ COMMON_WARNINGS := -Wall -Wshadow -Wundef -Wmissing-prototypes -Wno-discarded-qu
 	-Wstack-usage=2048 -Wno-unused-value
 
 ifeq ($(PLATFORM),ubuntu)
-	# Native Ubuntu desktop build. Use SDL2 instead of /dev/fb0 + evdev.
+	# Native Ubuntu desktop build. lv_drv_conf.h selects the legacy
+	# USE_MONITOR=1 configuration, which is implemented by lv_drivers/sdl/sdl.c.
+	# Do NOT define USE_SDL at the same time: lv_drivers v8.1 rejects
+	# USE_MONITOR && USE_SDL with a preprocessor #error.
 	ifeq ($(origin CC), default)
 		CC := gcc
 	endif
 	export CC
 	export CFLAGS := -O2 -g $(COMMON_WARNINGS) -I$(LVGL_DIR) \
-		-DLV_DESKTOP_SIM=1 -DUSE_MONITOR=1 -DUSE_SDL=1 \
+		-DLV_DESKTOP_SIM=1 \
 		$(shell pkg-config --cflags sdl2 dbus-1 2>/dev/null)
 	export LDFLAGS := -lm -lpthread $(shell pkg-config --libs sdl2 dbus-1 2>/dev/null)
 	BUILD_APPS ?= 0
