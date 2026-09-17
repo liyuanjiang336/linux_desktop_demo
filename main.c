@@ -4,81 +4,83 @@
 #include <dbus/dbus.h>
 
 #include "lvgl/lvgl.h"
+
+#ifdef LV_DESKTOP_SIM
+#include "lv_drivers/display/monitor.h"
+#include "lv_drivers/sdl/sdl.h"
+#else
 #include "lv_drivers/display/fbdev.h"
 #include "lv_drivers/indev/evdev.h"
-#include "lv_lib_png/lv_png.h"
+#endif
 
+#include "lv_lib_png/lv_png.h"
 #include "lv_100ask_modules/lv_100ask_modules.h"
 
-#define DISP_BUF_SIZE (1024 * 600)
-
+#define DISP_HOR_RES 1024
+#define DISP_VER_RES 600
+#define DISP_BUF_SIZE (DISP_HOR_RES * DISP_VER_RES)
 
 int main(void)
 {
-    /*LittlevGL init*/
     lv_init();
 
-    /*Linux frame buffer device init*/
+#ifdef LV_DESKTOP_SIM
+    /* Ubuntu desktop: SDL2 provides both the display window and mouse input. */
+    monitor_init();
+#else
+    /* Embedded Linux: use /dev/fb0 and evdev. */
     fbdev_init();
+#endif
 
-    /*A small buffer for LittlevGL to draw the screen's content*/
     static lv_color_t buf[DISP_BUF_SIZE];
-
-    /*Initialize a descriptor for the buffer*/
     static lv_disp_draw_buf_t disp_buf;
     lv_disp_draw_buf_init(&disp_buf, buf, NULL, DISP_BUF_SIZE);
 
-    /*Initialize and register a display driver*/
     static lv_disp_drv_t disp_drv;
     lv_disp_drv_init(&disp_drv);
-    disp_drv.draw_buf   = &disp_buf;
-    disp_drv.flush_cb   = fbdev_flush;
-    disp_drv.hor_res    = 1024;
-    disp_drv.ver_res    = 600;
+    disp_drv.draw_buf = &disp_buf;
+#ifdef LV_DESKTOP_SIM
+    disp_drv.flush_cb = monitor_flush;
+#else
+    disp_drv.flush_cb = fbdev_flush;
+#endif
+    disp_drv.hor_res = DISP_HOR_RES;
+    disp_drv.ver_res = DISP_VER_RES;
     lv_disp_drv_register(&disp_drv);
 
-	/* Linux input device init */
-    evdev_init();
-	
-    /* Initialize and register a display input driver */
     lv_indev_drv_t indev_drv;
-    lv_indev_drv_init(&indev_drv);      /*Basic initialization*/
-
+    lv_indev_drv_init(&indev_drv);
     indev_drv.type = LV_INDEV_TYPE_POINTER;
-    indev_drv.read_cb = evdev_read;   //lv_gesture_dir_t lv_indev_get_gesture_dir(const lv_indev_t * indev)
-    lv_indev_t * my_indev = lv_indev_drv_register(&indev_drv); 
+#ifdef LV_DESKTOP_SIM
+    indev_drv.read_cb = sdl_mouse_read;
+#else
+    evdev_init();
+    indev_drv.read_cb = evdev_read;
+#endif
+    lv_indev_drv_register(&indev_drv);
 
-    // 支持png
     lv_png_init();
-
-    // Set Image Cache size
     lv_img_cache_set_size(32);
 
-    // 调用进程间通信管理初始化函数
+    /* DBus is retained on Ubuntu so the original desktop IPC architecture works. */
     lv_100ask_dbus_handler_init("net.ask100.lvgl.Main", "/net/ask100/lvgl/Main");
 
-    /* 初始化桌面环境 */
-    //lv_100ask_boot_animation(lv_100ask_demo_init_icon, 1500); //开机动画
     lv_100ask_demo_init_icon();
 
     while(1) {
-        if (1 == is_app_fore_ground())
-        {
+        if(1 == is_app_fore_ground()) {
             lv_task_handler();
-            //lv_tick_inc(5*1000);
             usleep(5000);
         }
-        else
-        {
+        else {
             wait_for_become_front_ground();
             lv_100ask_demo_init_icon();
         }
     }
+
     return 0;
 }
 
-
-/*Set in lv_conf.h as `LV_TICK_CUSTOM_SYS_TIME_EXPR`*/
 uint32_t custom_tick_get(void)
 {
     static uint64_t start_ms = 0;
@@ -90,9 +92,7 @@ uint32_t custom_tick_get(void)
 
     struct timeval tv_now;
     gettimeofday(&tv_now, NULL);
-    uint64_t now_ms;
-    now_ms = (tv_now.tv_sec * 1000000 + tv_now.tv_usec) / 1000;
+    uint64_t now_ms = (tv_now.tv_sec * 1000000 + tv_now.tv_usec) / 1000;
 
-    uint32_t time_ms = now_ms - start_ms;
-    return time_ms;
+    return (uint32_t)(now_ms - start_ms);
 }
