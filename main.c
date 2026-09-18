@@ -1,6 +1,8 @@
 #include <unistd.h>
 #include <time.h>
 #include <sys/time.h>
+#include <stdlib.h>
+#include <stdio.h>
 #include <dbus/dbus.h>
 
 #include "lvgl/lvgl.h"
@@ -32,17 +34,48 @@ void lv_tick_inc(uint32_t tick_period)
 {
     (void)tick_period;
 }
+
+static void prepare_desktop_runtime(void)
+{
+    /*
+     * The original 100ASK deployment expects ./icon next to the executable.
+     * In this repository the assets live in ./assets/icon, so create a local
+     * compatibility symlink when running from the repository root.
+     */
+    if(access("./icon", F_OK) != 0 && access("./assets/icon", R_OK) == 0) {
+        if(symlink("assets/icon", "icon") == 0) {
+            printf("[INIT] created ./icon -> assets/icon\n");
+        }
+        else {
+            perror("[WARN] unable to create ./icon symlink");
+        }
+    }
+
+    if(access("./icon", R_OK) == 0) {
+        printf("[INIT] icon directory ready: ./icon\n");
+    }
+    else {
+        printf("[WARN] ./icon is not readable; desktop images may fail to load\n");
+    }
+}
 #endif
 
 int main(void)
 {
+    setvbuf(stdout, NULL, _IONBF, 0);
+
+#ifdef LV_DESKTOP_SIM
+    prepare_desktop_runtime();
+#endif
+
+    printf("[INIT] lv_init\n");
     lv_init();
 
 #ifdef LV_DESKTOP_SIM
-    /* Ubuntu desktop: SDL2 provides both the display window and mouse input. */
+    printf("[INIT] SDL monitor_init\n");
     monitor_init();
+    printf("[INIT] SDL monitor ready\n");
 #else
-    /* Embedded Linux: use /dev/fb0 and evdev. */
     fbdev_init();
 #endif
 
@@ -61,6 +94,7 @@ int main(void)
     disp_drv.hor_res = DISP_HOR_RES;
     disp_drv.ver_res = DISP_VER_RES;
     lv_disp_drv_register(&disp_drv);
+    printf("[INIT] display registered\n");
 
     lv_indev_drv_t indev_drv;
     lv_indev_drv_init(&indev_drv);
@@ -72,14 +106,35 @@ int main(void)
     indev_drv.read_cb = evdev_read;
 #endif
     lv_indev_drv_register(&indev_drv);
+    printf("[INIT] input registered\n");
 
     lv_png_init();
     lv_img_cache_set_size(32);
+    printf("[INIT] PNG decoder ready\n");
 
-    /* DBus is retained on Ubuntu so the original desktop IPC architecture works. */
+#ifdef LV_DESKTOP_SIM
+    /*
+     * The legacy 100ASK DBus handler uses a partially initialized
+     * DBusObjectPathVTable. Keep it disabled by default on the native Ubuntu
+     * simulator until that module is hardened. Enable explicitly with:
+     *   LV_DESKTOP_ENABLE_DBUS=1 ./bin/100ask_lvgl_Main
+     */
+    const char *enable_dbus = getenv("LV_DESKTOP_ENABLE_DBUS");
+    if(enable_dbus != NULL && enable_dbus[0] == '1') {
+        printf("[INIT] DBus enabled by LV_DESKTOP_ENABLE_DBUS=1\n");
+        lv_100ask_dbus_handler_init("net.ask100.lvgl.Main", "/net/ask100/lvgl/Main");
+        printf("[INIT] DBus handler ready\n");
+    }
+    else {
+        printf("[INIT] DBus skipped in Ubuntu simulator\n");
+    }
+#else
     lv_100ask_dbus_handler_init("net.ask100.lvgl.Main", "/net/ask100/lvgl/Main");
+#endif
 
+    printf("[INIT] creating desktop icons\n");
     lv_100ask_demo_init_icon();
+    printf("[INIT] desktop icons ready\n");
 
     while(1) {
         if(1 == is_app_fore_ground()) {
