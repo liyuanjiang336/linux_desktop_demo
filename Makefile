@@ -93,9 +93,9 @@ SRC_DIR  +=  lv_100ask_app/src/imx6ull_app/imx6ull_set_lcd_brightness \
 			 lv_100ask_app/src/imx6ull_app/imx6ull_set_lan
 endif
 
-.PHONY: all default apps clean check-deps
+.PHONY: all default apps clean check-deps prepare-runtime
 
-all: check-deps default
+all: check-deps default prepare-runtime
 ifeq ($(BUILD_APPS),1)
 	$(foreach dir,$(SRC_DIR),$(MAKE) $(RUN_JOBS) -C $(dir);)
 endif
@@ -105,6 +105,14 @@ ifeq ($(PLATFORM),ubuntu)
 	@command -v pkg-config >/dev/null 2>&1 || { echo "ERROR: pkg-config is required"; exit 1; }
 	@pkg-config --exists sdl2 || { echo "ERROR: SDL2 development package not found. Install: sudo apt install libsdl2-dev"; exit 1; }
 	@pkg-config --exists dbus-1 || { echo "ERROR: DBus development package not found. Install: sudo apt install libdbus-1-dev"; exit 1; }
+endif
+
+prepare-runtime:
+ifeq ($(PLATFORM),ubuntu)
+	@if [ ! -e "$(LVGL_DIR)/icon" ]; then \
+		ln -s assets/icon "$(LVGL_DIR)/icon"; \
+		echo "Created runtime asset link: icon -> assets/icon"; \
+	fi
 endif
 
 %.o: %.c
