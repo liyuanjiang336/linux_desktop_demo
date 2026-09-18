@@ -52,6 +52,9 @@ endif
 BIN = 100ask_lvgl_Main
 RUN_JOBS =
 MAINSRC = ./main.c
+ifeq ($(PLATFORM),ubuntu)
+MAINSRC += ./desktop_sim.c
+endif
 
 include $(LVGL_DIR)/lvgl/lvgl.mk
 include $(LVGL_DIR)/lv_drivers/lv_drivers.mk
