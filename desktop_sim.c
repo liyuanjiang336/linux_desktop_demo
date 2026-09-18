@@ -5,6 +5,9 @@
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
+#include <signal.h>
+#include <sys/types.h>
+#include <unistd.h>
 
 #include "lvgl/lvgl.h"
 #include "lv_100ask_modules/lv_100ask_modules.h"
@@ -125,6 +128,28 @@ static const char * service_display_name(const char * service_name)
     return dot != NULL ? dot + 1 : service_name;
 }
 
+static void launch_app_process(const char * service_name)
+{
+    pid_t pid = fork();
+
+    if(pid < 0) {
+        perror("[ERROR] fork");
+        return;
+    }
+
+    if(pid == 0) {
+        execl("./bin/100ask_lvgl_AppRunner",
+              "100ask_lvgl_AppRunner",
+              service_name,
+              (char *)NULL);
+
+        perror("[ERROR] execl ./bin/100ask_lvgl_AppRunner");
+        _exit(127);
+    }
+
+    printf("[DESKTOP] launched %s, pid=%ld\n", service_name, (long)pid);
+}
+
 static void desktop_icon_event_cb(lv_event_t * e)
 {
     if(lv_event_get_code(e) != LV_EVENT_CLICKED) return;
@@ -136,24 +161,8 @@ static void desktop_icon_event_cb(lv_event_t * e)
     const char * service_name = lv_label_get_text(hidden_label);
     if(service_name == NULL || service_name[0] == '\0') return;
 
-    const char * enable_dbus = getenv("LV_DESKTOP_ENABLE_DBUS");
-    if(enable_dbus == NULL || enable_dbus[0] != '1') {
-        printf("[DESKTOP] clicked %s (DBus disabled)\n", service_name);
-        return;
-    }
-
-    char object_path[128];
-    int n = snprintf(object_path, sizeof(object_path), "/%s", service_name);
-    if(n <= 0 || (size_t)n >= sizeof(object_path)) {
-        printf("[WARN] service name too long: %s\n", service_name);
-        return;
-    }
-
-    for(char * p = object_path; *p != '\0'; ++p) {
-        if(*p == '.') *p = '/';
-    }
-
-    dbus_method_call(service_name, object_path, service_name, "states", 1, 0);
+    printf("[DESKTOP] clicked %s\n", service_name);
+    launch_app_process(service_name);
 }
 
 void desktop_sim_init(void)
@@ -162,6 +171,9 @@ void desktop_sim_init(void)
     static lv_style_t icon_style;
     static lv_style_t bottom_style;
     static int styles_initialized;
+
+    /* Do not leave zombie app-runner processes after their SDL windows close. */
+    signal(SIGCHLD, SIG_IGN);
 
     printf("[DESKTOP] create screen\n");
 
