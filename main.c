@@ -10,6 +10,7 @@
 #ifdef LV_DESKTOP_SIM
 #include "lv_drivers/display/monitor.h"
 #include "lv_drivers/sdl/sdl.h"
+#include "desktop_sim.h"
 #else
 #include "lv_drivers/display/fbdev.h"
 #include "lv_drivers/indev/evdev.h"
@@ -133,7 +134,11 @@ int main(void)
 #endif
 
     printf("[INIT] creating desktop icons\n");
+#ifdef LV_DESKTOP_SIM
+    desktop_sim_init();
+#else
     lv_100ask_demo_init_icon();
+#endif
     printf("[INIT] desktop icons ready\n");
 
     while(1) {
@@ -143,7 +148,11 @@ int main(void)
         }
         else {
             wait_for_become_front_ground();
+#ifdef LV_DESKTOP_SIM
+            desktop_sim_init();
+#else
             lv_100ask_demo_init_icon();
+#endif
         }
     }
 
