@@ -54,6 +54,8 @@ RUN_JOBS =
 MAINSRC = ./main.c
 ifeq ($(PLATFORM),ubuntu)
 MAINSRC += ./desktop_sim.c
+APP_RUNNER_SRC = ./app_runner.c
+APP_RUNNER_BIN = 100ask_lvgl_AppRunner
 endif
 
 include $(LVGL_DIR)/lvgl/lvgl.mk
@@ -68,12 +70,19 @@ endif
 
 include $(LVGL_DIR)/lv_lib_png/lv_lib_png.mk
 include $(LVGL_DIR)/lv_100ask_modules/lv_100ask_modules.mk
+ifeq ($(PLATFORM),ubuntu)
+include $(LVGL_DIR)/lv_demos/lv_demo.mk
+include $(LVGL_DIR)/lv_100ask_demos/lv_100ask_demo.mk
+endif
 
 OBJEXT ?= .o
 AOBJS = $(ASRCS:.S=$(OBJEXT))
 COBJS = $(CSRCS:.c=$(OBJEXT))
 MAINOBJ = $(MAINSRC:.c=$(OBJEXT))
-SRCS = $(ASRCS) $(CSRCS) $(MAINSRC)
+ifeq ($(PLATFORM),ubuntu)
+APP_RUNNER_OBJ = $(APP_RUNNER_SRC:.c=$(OBJEXT))
+endif
+SRCS = $(ASRCS) $(CSRCS) $(MAINSRC) $(APP_RUNNER_SRC)
 OBJS = $(AOBJS) $(COBJS)
 
 # Standalone application binaries. They still use the embedded framebuffer path,
@@ -122,12 +131,18 @@ endif
 	$(CC) $(CFLAGS) -c $< -o $@
 	@echo "CC $<"
 
-default: $(AOBJS) $(COBJS) $(MAINOBJ)
+default: $(AOBJS) $(COBJS) $(MAINOBJ) $(APP_RUNNER_OBJ)
 	$(CC) -o $(BIN) $(MAINOBJ) $(AOBJS) $(COBJS) $(LDFLAGS)
+ifeq ($(PLATFORM),ubuntu)
+	$(CC) -o $(APP_RUNNER_BIN) $(APP_RUNNER_OBJ) $(AOBJS) $(COBJS) $(LDFLAGS)
+endif
 	mkdir -p $(LVGL_DIR)/obj $(LVGL_DIR)/bin
 	mv *.o $(LVGL_DIR)/obj/
 	mv $(BIN) $(LVGL_DIR)/bin/
+ifeq ($(PLATFORM),ubuntu)
+	mv $(APP_RUNNER_BIN) $(LVGL_DIR)/bin/
+endif
 
 clean:
-	rm -f $(BIN) $(AOBJS) $(COBJS) $(MAINOBJ) ./bin/* ./obj/*
+	rm -f $(BIN) $(APP_RUNNER_BIN) $(AOBJS) $(COBJS) $(MAINOBJ) $(APP_RUNNER_OBJ) ./bin/* ./obj/*
 	$(foreach dir,$(SRC_DIR),$(MAKE) -C $(dir) clean;)
